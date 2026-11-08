@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Detectives – Annual Resource Review</title>
+<style>
+*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;background:#f4f7fb;color:#202b38;line-height:1.45}
+header{background:#17324d;color:white;padding:20px}header h1{margin:0 0 5px;font-size:1.4rem}header p{margin:0}
+main{max-width:1100px;margin:18px auto;padding:0 12px}.card{background:white;border:1px solid #d9e1ea;border-radius:12px;padding:15px;margin:14px 0}
+h2{font-size:1.1rem;color:#17324d;margin:0 0 12px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.field{display:flex;flex-direction:column;gap:5px;flex:1;min-width:150px}label{font-size:.88rem;font-weight:bold}
+input,select,button{font:inherit;padding:9px;border:1px solid #bdc8d5;border-radius:7px;background:white;max-width:100%}
+button{background:#2463a6;color:white;border:0;font-weight:bold;cursor:pointer}button.secondary{background:#e8eef5;color:#17324d;border:1px solid #ccd6e2}
+button:disabled{opacity:.45}.note{background:#edf4fc;padding:10px;border-radius:8px;margin-top:10px}.good{background:#eaf7ef}.warn{background:#fff4e5}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;margin-top:10px}
+.stat{background:#f5f8fc;border:1px solid #d9e1ea;border-radius:8px;padding:10px}.stat b{display:block;font-size:1.25rem;color:#17324d}
+.small{font-size:.84rem;color:#596a7c}.tablewrap{overflow:auto;max-height:420px;border:1px solid #d9e1ea;border-radius:8px;margin-top:8px}
+table{border-collapse:collapse;width:100%;font-size:.85rem;white-space:nowrap}th,td{padding:8px;border-bottom:1px solid #e1e7ee;text-align:left}th{background:#edf2f7;position:sticky;top:0}
+td[contenteditable=true]{background:#fff8dc;min-width:80px}.tag{display:inline-block;background:#edf2f7;border-radius:20px;padding:2px 7px;margin:2px;font-size:.78rem}
+canvas{width:100%;max-height:300px;border:1px solid #e1e7ee;border-radius:8px}
+footer{text-align:center;padding:18px;color:#667}
+@media(max-width:600px){header h1{font-size:1.15rem}.card{padding:12px}}
+</style>
+</head>
+<body>
+<header><h1>Data Detectives – Annual Resource Review</h1><p>Assignment 1 · CSV analysis and cleaning tool</p></header>
+<main>
+<section class="card">
+<h2>1. Upload CSV (T1)</h2>
+<div class="row"><div class="field"><label for="file">Choose Resource_Allocation_Records.csv</label><input id="file" type="file" accept=".csv,text/csv"></div></div>
+<div id="status" class="note">Upload a CSV file to begin. Your original file is never changed; this tool works on a copy in your browser.</div>
+<div id="summary" class="stats"></div><div id="types" class="small"></div>
+</section>
+<section class="card">
+<h2>2. Search, sort and filter (T2)</h2>
+<div class="row">
+<div class="field"><label>Search all columns</label><input id="search" placeholder="Search records"></div>
+<div class="field"><label>Filter column</label><select id="filterCol"><option value="">No filter</option></select></div>
+<div class="field"><label>Filter contains</label><input id="filterVal" placeholder="Value"></div>
+<div class="field"><label>Sort by</label><select id="sortCol"><option value="">No sorting</option></select></div>
+<div class="field"><label>Order</label><select id="sortDir"><option value="asc">Ascending</option><option value="desc">Descending</option></select></div>
+</div>
+<p class="small">Descriptions and notes are shown in full. You can edit a table cell by tapping it; edits are added to the change log.</p>
+<div id="tableInfo" class="small"></div><div class="tablewrap"><table id="dataTable"><thead></thead><tbody></tbody></table></div>
+</section>
+<section class="card">
+<h2>3. Data quality and cleaning (T3)</h2><div id="quality"></div>
+<p class="small">Preview cleaning trims extra spaces and identifies exact duplicate rows. Missing values are not automatically filled because the correct values are unknown.</p>
+<div class="row"><button id="preview" class="secondary" disabled>Preview cleaning</button><button id="apply" disabled>Apply preview</button></div>
+<div id="previewText" class="note">Upload a CSV first.</div>
+<h3>Change log</h3><div id="log" class="small">No changes yet.</div>
+</section>
+<section class="card">
+<h2>4. Descriptive statistics (T4)</h2>
+<div class="field"><label>Choose numeric column</label><select id="statCol"><option value="">Choose column</option></select></div>
+<div id="stats" class="stats"></div>
+</section>
+<section class="card">
+<h2>5. Charts and outliers (T5)</h2>
+<div class="field"><label>Choose numeric column</label><select id="chartCol"><option value="">Choose column</option></select></div>
+<div id="iqr" class="note">Choose a numeric column.</div><canvas id="chart" width="1000" height="300"></canvas>
+<p class="small">Outlier fences use 1.5 × IQR. Quartiles are calculated with the inclusive percentile method.</p>
+</section>
+<section class="card">
+<h2>6. Export (T6)</h2>
+<div class="row"><button id="exportCsv" disabled>Download cleaned CSV</button><button id="exportLog" class="secondary" disabled>Download change log</button></div>
+</section>
+<section class="card">
+<h2>Report reminder (R1–R4)</h2>
+<ul>
+<li>R1: Describe the dataset in your own words.</li>
+<li>R2: Explain your cleaning choices and unresolved issues.</li>
+<li>R3: Present statistics, charts, and your own findings.</li>
+<li>R4: Create and answer three investigation questions using evidence from your data.</li>
+</ul>
+<p class="small">This tool supports your investigation. Check results yourself and write your own analysis and conclusions.</p>
+</section>
+</main><footer>Data Detectives · Assignment 1</footer>
+<script>
+let headers=[],rows=[],originalCount=0,logEntries=[],previewRows=null;
+const el=id=>document.getElementById(id);
+function parseCSV(s){let a=[],r=[],v="",q=false;for(let i=0;i<s.length;i++){let c=s[i];if(q){if(c=='"'&&s[i+1]=='"'){v+='"';i++}else if(c=='"')q=false;else v+=c}else{if(c=='"')q=true;else if(c==','){r.push(v);v=''}else if(c=='\n'){r.push(v.replace(/\r$/,''));a.push(r);r=[];v=''}else v+=c}}if(v.length||r.length){r.push(v.replace(/\r$/,''));a.push(r)}while(a.length&&a[a.length-1].every(x=>x===''))a.pop();return a}
+function esc(x){x=String(x??'');return /[",\n\r]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x}
+function dl(name,text,type='text/csv;charset=utf-8'){let u=URL.createObjectURL(new Blob([text],{type})),a=document.createElement('a');a.href=u;a.download=name;a.click();URL.revokeObjectURL(u)}
+function missing(x){return String(x??'').trim()===''}
+function nums(c){return rows.map(r=>Number(String(r[c]).replace(/,/g,''))).filter((n,i)=>!missing(rows[i][c])&&Number.isFinite(n))}
+function setOpts(id,values,label){let s=el(id);s.innerHTML='';let o=document.createElement('option');o.value='';o.textContent=label;s.append(o);values.forEach(v=>{let x=document.createElement('option');x.value=v;x.textContent=v;s.append(x)})}
+function typeOf(c){let v=rows.map(r=>r[c]).filter(x=>!missing(x));if(!v.length)return'No values';return v.every(x=>Number.isFinite(Number(String(x).replace(/,/g,''))))?'Number':'Text'}
+el('file').addEventListener('change',async e=>{let f=e.target.files[0];if(!f)return;try{let a=parseCSV(await f.text());if(a.length<2)throw Error('Please choose a CSV with a header and data rows.');headers=a[0].map((x,i)=>x.trim()||'Column_'+(i+1));rows=a.slice(1).map(r=>headers.map((_,i)=>r[i]??''));originalCount=rows.length;logEntries=[];previewRows=null;
+['filterCol','sortCol','statCol','chartCol'].forEach((id,i)=>setOpts(id,headers,i===0?'No filter':i===1?'No sorting':'Choose column'));
+el('status').textContent=`Loaded ${f.name}: ${rows.length} records and ${headers.length} columns.`;el('status').className='note good';el('preview').disabled=false;render();
+}catch(err){el('status').textContent=err.message;el('status').className='note warn'}});
+['search','filterCol','filterVal','sortCol','sortDir'].forEach(id=>el(id).addEventListener('input',renderTable));
+function render(){el('summary').innerHTML=[['Records',rows.length],['Columns',headers.length],['Original records',originalCount],['Missing cells',rows.reduce((n,r)=>n+r.filter(missing).length,0)]].map(x=>`<div class="stat"><b>${x[1]}</b>${x[0]}</div>`).join('');
+el('types').innerHTML='<p><b>Suggested data types:</b> '+headers.map((h,i)=>`${h}: <span class="tag">${typeOf(i)}</span>`).join(' ')+'</p>';
+let miss=headers.map((h,i)=>({h,n:rows.filter(r=>missing(r[i])).length})).filter(x=>x.n);
+let seen=new Set(),dups=0;rows.forEach(r=>{let k=JSON.stringify(r);if(seen.has(k))dups++;else seen.add(k)});
+el('quality').innerHTML=`<p>Missing cells: <b>${rows.reduce((n,r)=>n+r.filter(missing).length,0)}</b></p><p>Exact duplicate rows after first occurrence: <b>${dups}</b></p><p>Missing values by column: ${miss.length?miss.map(x=>`${x.h} (${x.n})`).join(', '):'None'}</p>`;
+renderTable();renderStats();renderChart();el('exportCsv').disabled=false;el('exportLog').disabled=false;el('log').textContent=logEntries.length?logEntries.map(x=>`${x.time} | ${x.row} | ${x.column} | ${x.oldValue} → ${x.newValue} | ${x.method}`).join('\n'):'No changes yet.'}
+function renderTable(){if(!headers.length)return;let list=rows.map((r,i)=>({r,i})),q=el('search').value.toLowerCase(),fc=el('filterCol').value,fv=el('filterVal').value.toLowerCase();if(q)list=list.filter(x=>x.r.some(v=>String(v).toLowerCase().includes(q)));if(fc!==''&&fv)list=list.filter(x=>String(x.r[Number(fc)]).toLowerCase().includes(fv));let sc=el('sortCol').value;if(sc!==''){let c=Number(sc),d=el('sortDir').value;list.sort((a,b)=>{let x=a.r[c],y=b.r[c],nx=Number(String(x).replace(/,/g,'')),ny=Number(String(y).replace(/,/g,''));let z=Number.isFinite(nx)&&Number.isFinite(ny)?nx-ny:String(x).localeCompare(String(y));return d==='asc'?z:-z})}
+el('tableInfo').textContent=`Showing ${list.length} of ${rows.length} records. Tap a cell to edit.`;el('dataTable').querySelector('thead').innerHTML='<tr>'+headers.map(h=>`<th>${safe(h)}</th>`).join('')+'</tr>';let tb=el('dataTable').querySelector('tbody');tb.innerHTML='';list.slice(0,500).forEach(x=>{let tr=document.createElement('tr');x.r.forEach((v,c)=>{let td=document.createElement('td');td.textContent=v;td.contentEditable='true';td.title='Tap to edit';td.addEventListener('blur',()=>{let old=rows[x.i][c],nv=td.textContent;if(old!==nv){rows[x.i][c]=nv;logEntries.push({time:new Date().toLocaleString(),row:x.i+1,column:headers[c],oldValue:old,newValue:nv,method:'Manual edit'});td.style.background='#fff0b3';render();}});tr.append(td)});tb.append(tr)})}
+function safe(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function renderStats(){let c=el('statCol').value;if(c===''){el('stats').innerHTML='';return}let a=nums(Number(c)).sort((x,y)=>x-y);if(!a.length){el('stats').textContent='No numeric values in this column.';return}let sum=a.reduce((x,y)=>x+y,0),mean=sum/a.length,mid=a.length%2?a[(a.length-1)/2]:(a[a.length/2-1]+a[a.length/2])/2,counts=new Map();a.forEach(x=>counts.set(x,(counts.get(x)||0)+1));let maxfreq=Math.max(...counts.values()),modes=[...counts].filter(x=>x[1]===maxfreq).map(x=>x[0]);let sd=Math.sqrt(a.reduce((s,x)=>s+(x-mean)**2,0)/a.length);let vals=[['Count',a.length],['Total',sum],['Mean',mean],['Median',mid],['Mode',maxfreq===1?'None':modes.join(', ')],['Minimum',a[0]],['Maximum',a[a.length-1]],['Range',a[a.length-1]-a[0]],['Population SD',sd]];el('stats').innerHTML=vals.map(x=>`<div class="stat"><b>${typeof x[1]==='number'?Number(x[1].toFixed(3)):x[1]}</b>${x[0]}</div>`).join('')}
+function percentile(a,p){let pos=(a.length-1)*p,lo=Math.floor(pos),hi=Math.ceil(pos);return a[lo]+(a[hi]-a[lo])*(pos-lo)}
+function renderChart(){let c=el('chartCol').value,ctx=el('chart').getContext('2d');ctx.clearRect(0,0,1000,300);if(c===''){el('iqr').textContent='Choose a numeric column.';return}let a=nums(Number(c)).sort((x,y)=>x-y);if(!a.length){el('iqr').textContent='No numeric values in this column.';return}let q1=percentile(a,.25),q3=percentile(a,.75),iqr=q3-q1,lo=q1-1.5*iqr,hi=q3+1.5*iqr,out=a.filter(x=>x<lo||x>hi);el('iqr').textContent=`Count: ${a.length} · Q1: ${q1.toFixed(2)} · Q3: ${q3.toFixed(2)} · IQR: ${iqr.toFixed(2)} · Lower fence: ${lo.toFixed(2)} · Upper fence: ${hi.toFixed(2)} · Outliers: ${out.length}${out.length?` (${out.slice(0,20).join(', ')}${out.length>20?'…':''})`:''}`;
+let min=a[0],max=a[a.length-1],bins=Math.min(12,Math.max(5,Math.ceil(Math.sqrt(a.length)))),counts=Array(bins).fill(0);a.forEach(x=>{let k=max===min?0:Math.min(bins-1,Math.floor((x-min)/(max-min)*bins));counts[k]++});let peak=Math.max(...counts),w=850/bins;ctx.fillStyle='#2463a6';counts.forEach((n,i)=>{let h=210*n/peak;ctx.fillRect(70+i*w,245-h,w-5,h)});ctx.fillStyle='#202b38';ctx.font='14px Arial';ctx.fillText('Frequency',10,20);ctx.fillText(String(min),65,270);ctx.fillText(String(max),900,270);ctx.fillText('Distribution of values',380,292)}
+el('preview').addEventListener('click',()=>{let seen=new Set(),candidate=[],trimmed=0,duplicates=0;rows.forEach(r=>{let nr=r.map(v=>{let t=String(v).trim();if(t!==v)trimmed++;return t});let k=JSON.stringify(nr);if(seen.has(k)){duplicates++;return}seen.add(k);candidate.push(nr)});previewRows=candidate;el('previewText').textContent=`Preview: ${trimmed} cells would have surrounding spaces trimmed; ${duplicates} exact duplicate rows would be removed. Records: ${rows.length} → ${candidate.length}. Missing values will remain unchanged.`;el('apply').disabled=false});
+el('apply').addEventListener('click',()=>{if(!previewRows)return;let before=rows.length;rows=previewRows;logEntries.push({time:new Date().toLocaleString(),row:'All rows',column:'All columns',oldValue:`${before} rows`,newValue:`${rows.length} rows`,method:'Trim spaces and remove exact duplicate rows',reason:'Consistent text and unique records'});previewRows=null;el('apply').disabled=true;render();el('previewText').textContent='Cleaning preview applied. Original uploaded file remains unchanged.'});
+el('statCol').addEventListener('change',renderStats);el('chartCol').addEventListener('change',renderChart);
+el('exportCsv').addEventListener('click',()=>dl('Resource_Allocation_Cleaned.csv',[headers.map(esc).join(','),...rows.map(r=>r.map(esc).join(','))].join('\r\n')));
+el('exportLog').addEventListener('click',()=>{let h=['Time','Row','Column','Original value','New value','Method','Reason'];let body=logEntries.map(x=>[x.time,x.row,x.column,x.oldValue,x.newValue,x.method,x.reason||''].map(esc).join(','));dl('Resource_Allocation_Change_Log.csv',[h.join(','),...body].join('\r\n'))});
+</script>
+</body>
+</html>
