@@ -1,0 +1,385 @@
+<!DOCTYPE html>  <html lang="en">  
+<head>  
+<meta charset="UTF-8">  
+<meta name="viewport" content="width=device-width, initial-scale=1.0">  
+<title>Deep Sea Salvage</title>  
+<style>  
+  :root { color-scheme: dark; --cyan:#66e6ff; --gold:#ffd166; --panel:rgba(4,18,35,.88); }  
+  * { box-sizing:border-box; }  
+  body {  
+    margin:0; min-height:100vh; background:radial-gradient(circle at 50% 0%,#123b5a,#04101e 65%);  
+    color:#eafaff; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;  
+    display:flex; justify-content:center; padding:18px;  
+  }  
+  .game-shell { width:min(100%,1000px); }  
+  header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 12px; }  
+  h1 { margin:0; font-size:clamp(1.35rem,4vw,2rem); letter-spacing:.04em; }  
+  h1 span { color:var(--cyan); }  
+  .subtitle { color:#a8c8d8; font-size:.88rem; margin-top:3px; }  
+  .hud {  
+    display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin-bottom:10px;  
+  }  
+  .gauge { background:var(--panel); border:1px solid #24516b; border-radius:10px; padding:9px 10px; min-width:0; }  
+  .gauge .label { color:#9fc4d5; font-size:.68rem; text-transform:uppercase; letter-spacing:.08em; }  
+  .gauge .value { font-size:clamp(.95rem,2.6vw,1.25rem); font-weight:800; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }  
+  .bar { height:5px; border-radius:8px; background:#173348; margin-top:7px; overflow:hidden; }  
+  .bar > i { display:block; height:100%; width:100%; background:var(--cyan); transition:width .12s linear; }  
+  .stage { position:relative; border:2px solid #28617d; border-radius:14px; overflow:hidden; background:#020b15; box-shadow:0 18px 60px #0009; }  
+  canvas { display:block; width:100%; height:auto; aspect-ratio: 800 / 700; outline:none; }  
+  .overlay {  
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:20px;  
+    background:linear-gradient(180deg,rgba(1,9,19,.5),rgba(1,9,19,.88)); text-align:center;  
+  }  
+  .overlay.hidden { display:none; }  
+  .dialog { width:min(100%,470px); padding:24px; background:rgba(3,20,36,.96); border:1px solid #36708c; border-radius:16px; box-shadow:0 12px 45px #000a; }  
+  .dialog h2 { margin:0 0 8px; color:var(--cyan); font-size:1.65rem; }  
+  .dialog p { color:#c5dce7; line-height:1.5; margin:8px 0 16px; }  
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:14px 0; }  
+  .stat { background:#0b2a40; padding:10px; border-radius:9px; }  
+  .stat small { display:block; color:#9fc4d5; }  
+  .stat strong { font-size:1.1rem; }  
+  button {  
+    border:0; border-radius:9px; padding:11px 17px; font-weight:800; font-size:.95rem; cursor:pointer;  
+    color:#062032; background:linear-gradient(135deg,#83efff,#38bfe0); box-shadow:0 4px 14px #00bde533;  
+  }  
+  button:hover { filter:brightness(1.08); transform:translateY(-1px); }  
+  button.secondary { background:#173c54; color:#e6f8ff; border:1px solid #38627a; box-shadow:none; }  
+  .controls { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; margin:11px 2px 0; color:#b8d2df; font-size:.84rem; }  
+  .keys { display:flex; flex-wrap:wrap; gap:7px; }  
+  kbd { display:inline-block; min-width:25px; text-align:center; padding:3px 6px; border-radius:5px; background:#12334a; border:1px solid #37627a; color:#effbff; font:700 .78rem ui-monospace,monospace; }  
+  .hint { color:#85b5c9; }  
+  .mobile-controls { display:none; grid-template-columns:repeat(3,1fr); gap:7px; max-width:260px; margin:12px auto 0; }  
+  .mobile-controls button { padding:13px 8px; touch-action:none; user-select:none; }  
+  .mobile-controls button:active { background:#fff; }  
+  footer { margin:14px 2px 0; color:#789bad; font-size:.75rem; line-height:1.5; }  
+  @media (max-width:650px) {  
+    body { padding:10px; }  
+    .hud { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }  
+    .gauge { padding:7px; }  
+    .gauge .label { font-size:.58rem; }  
+    .mobile-controls { display:grid; }  
+    .controls { font-size:.76rem; }  
+    header { align-items:flex-start; }  
+  }  
+</style>  
+</head>  
+<body>  
+<div class="game-shell">  
+  <header>  
+    <div>  
+      <h1>DEEP SEA <span>SALVAGE</span></h1>  
+      <div class="subtitle">Dive deep. Salvage wisely. Make it back alive.</div>  
+    </div>  
+    <button class="secondary" id="pauseBtn" type="button">Pause (P)</button>  
+  </header>    <section class="hud" aria-label="Submarine telemetry">  
+    <div class="gauge"><div class="label">Current Depth</div><div class="value" id="depthValue">0 m</div></div>  
+    <div class="gauge"><div class="label">Battery Power</div><div class="value" id="batteryValue">100%</div><div class="bar"><i id="batteryBar"></i></div></div>  
+    <div class="gauge"><div class="label">Hull Integrity</div><div class="value" id="hullValue">100%</div><div class="bar"><i id="hullBar"></i></div></div>  
+    <div class="gauge"><div class="label">Active Cargo</div><div class="value" id="cargoValue">$0</div></div>  
+    <div class="gauge"><div class="label">Vaulted Bank</div><div class="value" id="bankValue">$0</div></div>  
+  </section>    <div class="stage">  
+    <canvas id="game" width="800" height="700" tabindex="0" aria-label="Deep Sea Salvage game area"></canvas>  
+    <div class="overlay" id="overlay">  
+      <div class="dialog">  
+        <h2 id="overlayTitle">Deep Sea Salvage</h2>  
+        <p id="overlayText">Pilot your yellow submarine through a dangerous ocean trench. Collect glowing artifacts, manage your battery and hull, then return to the surface to bank your cargo.</p>  
+        <div class="stats">  
+          <div class="stat"><small>Lifetime bank</small><strong id="overlayBank">$0</strong></div>  
+          <div class="stat"><small>Successful dives</small><strong id="overlayDives">0</strong></div>  
+        </div>  
+        <button id="mainBtn" type="button">Start Dive</button>  
+        <div style="margin-top:12px"><button class="secondary" id="resetCareerBtn" type="button">Reset Career</button></div>  
+      </div>  
+    </div>  
+  </div>    <div class="controls">  
+    <div class="keys">  
+      <span><kbd>←</kbd> <kbd>→</kbd> / <kbd>A</kbd> <kbd>D</kbd> steer</span>  
+      <span><kbd>↑</kbd> / <kbd>W</kbd> thrust up</span>  
+      <span><kbd>↓</kbd> / <kbd>S</kbd> descend faster</span>  
+      <span><kbd>P</kbd> pause</span>  
+    </div>  
+    <div class="hint">Return to the surface to bank your cargo.</div>  
+  </div>  
+  <div class="mobile-controls" aria-label="Touch controls">  
+    <span></span><button data-key="ArrowUp">▲ THRUST</button><span></span>  
+    <button data-key="ArrowLeft">◀ LEFT</button><button data-key="ArrowDown">▼ DIVE</button><button data-key="ArrowRight">RIGHT ▶</button>  
+  </div>  
+  <footer>  
+    Treasure values: shallow $10 · middle $25 · deep $50. Cargo adds weight: +1 / +2 / +4.  
+    Rock wall impact at high speed: 10% hull damage · sea mine: 25% · thermal vent: 20%.  
+    Battery drains continuously, with extra drain while thrusting.  
+  </footer>  
+</div>  <script>  
+(() => {  
+  "use strict";  
+  const canvas = document.getElementById("game");  
+  const ctx = canvas.getContext("2d");  
+  const W = canvas.width, H = canvas.height;  
+  const trench = { left: 145, right: 655 };  
+  const SURFACE_Y = 100;  
+  const MAX_DEPTH = 2600; // world pixels; telemetry displays two metres per pixel  
+  const GOAL = 5000;  
+  
+  // Tunable gameplay defaults. All gameplay is contained in this file.  
+  const TUNE = {  
+    gravity: 165, thrust: 330, diveBoost: 125,  
+    baseBatteryDrain: 0.42, thrustBatteryDrain: 1.35,  
+    horizontalSpeed: 250, wallImpactSpeed: 235,  
+    cargoHorizontalPenalty: 0.018, cargoThrustPenalty: 0.035,  
+    maxCargoWeight: 70, depthScale: 2,  
+    mineDamage: 25, ventDamage: 20, wallDamage: 10,  
+    batteryStart: 100, hullStart: 100  
+  };  
+  
+  const $ = id => document.getElementById(id);  
+  const money = n => "$" + Math.floor(n).toLocaleString("en-US");  
+  let bank = Number(localStorage.getItem("dss_bank") || 0);  
+  let dives = Number(localStorage.getItem("dss_dives") || 0);  
+  let mode = "menu"; // menu, playing, paused, recovery, failed, victory  
+  let lastTime = 0, cameraY = 0, runTime = 0, cargo = 0, cargoWeight = 0;  
+  let battery = 100, hull = 100, damageCooldown = 0, collectedCount = 0;  
+  let player = { x:400, y:SURFACE_Y+28, vy:0, w:56, h:34 };  
+  let keys = Object.create(null), objects = [], particles = [], ventFlash = 0;  
+  let successfulThisRun = 0;  
+  
+  function saveCareer() {  
+    localStorage.setItem("dss_bank", String(bank));  
+    localStorage.setItem("dss_dives", String(dives));  
+  }  
+  function updateHud() {  
+    const depth = Math.max(0, Math.round((player.y-SURFACE_Y)*TUNE.depthScale));  
+    $("depthValue").textContent = depth.toLocaleString("en-US") + " m";  
+    $("batteryValue").textContent = Math.ceil(battery) + "%";  
+    $("hullValue").textContent = Math.ceil(hull) + "%";  
+    $("cargoValue").textContent = money(cargo);  
+    $("bankValue").textContent = money(bank);  
+    $("batteryBar").style.width = Math.max(0,battery) + "%";  
+    $("hullBar").style.width = Math.max(0,hull) + "%";  
+    $("batteryBar").style.background = battery < 25 ? "#ff657a" : "#66e6ff";  
+    $("hullBar").style.background = hull < 30 ? "#ff657a" : "#7cf0b4";  
+  }  
+  function showOverlay(title, text, buttonText, action) {  
+    $("overlayTitle").textContent = title;  
+    $("overlayText").textContent = text;  
+    $("overlayBank").textContent = money(bank);  
+    $("overlayDives").textContent = String(dives);  
+    $("mainBtn").textContent = buttonText;  
+    $("mainBtn").onclick = action;  
+    $("overlay").classList.remove("hidden");  
+    $("pauseBtn").disabled = mode !== "playing" && mode !== "paused";  
+  }  
+  function hideOverlay() {  
+    $("overlay").classList.add("hidden");  
+    $("pauseBtn").disabled = false;  
+  }  
+  function generateDive() {  
+    objects = [];  
+    particles = [];  
+    // Treasures are placed in their matching depth bands.  
+    const treasureSpecs = [  
+      {min:230,max:650,value:10,weight:1,count:8,color:"#7df6ff",name:"Shallow relic"},  
+      {min:760,max:1430,value:25,weight:2,count:9,color:"#b78cff",name:"Abyssal crystal"},  
+      {min:1540,max:2390,value:50,weight:4,count:10,color:"#ffd166",name:"Trench artifact"}  
+    ];  
+    for (const spec of treasureSpecs) {  
+      for (let i=0;i<spec.count;i++) {  
+        const y = spec.min + (i/(spec.count-1))*(spec.max-spec.min) + (Math.random()-.5)*55;  
+        objects.push({type:"treasure",x:trench.left+48+Math.random()*(trench.right-trench.left-96),y,  
+          value:spec.value,weight:spec.weight,r:13,color:spec.color,collected:false,name:spec.name});  
+      }  
+    }  
+    // Hazards become denser and faster with depth.  
+    for (let y=390;y<MAX_DEPTH-120;y+=205) {  
+      const depthFactor = y/MAX_DEPTH;  
+      objects.push({type:"mine",x:trench.left+70+Math.random()*(trench.right-trench.left-140),baseX:0,  
+        y:y+(Math.random()-.5)*65,phase:Math.random()*Math.PI*2,speed:65+depthFactor*100,amp:45+depthFactor*75,r:17,hit:false});  
+    }  
+    for (let y=560;y<MAX_DEPTH-160;y+=340) {  
+      const depthFactor=y/MAX_DEPTH;  
+      objects.push({type:"vent",x:trench.left+60+Math.random()*(trench.right-trench.left-120),  
+        y:y+(Math.random()-.5)*70,phase:Math.random()*5,period:Math.max(3.2,7.8-depthFactor*3.6),  
+        warning:1.55,r:34,hit:false,active:false});  
+    }  
+    objects.sort((a,b)=>a.y-b.y);  
+    player = {x:400,y:SURFACE_Y+28,vy:0,w:56,h:34};  
+    cameraY = 0; runTime = 0; cargo = 0; cargoWeight = 0; battery = 100; hull = 100;  
+    damageCooldown = 0; collectedCount = 0; ventFlash = 0;  
+    updateHud();  
+  }  
+  function startDive() {  
+    generateDive();  
+    mode = "playing";  
+    hideOverlay();  
+    canvas.focus();  
+    lastTime = performance.now();  
+  }  
+  function pauseGame() {  
+    if (mode === "playing") {  
+      mode = "paused";  
+      showOverlay("Dive paused","Your submarine, battery, and hazards are frozen. Resume when you are ready.","Resume Dive",() => {  
+        mode = "playing"; hideOverlay(); lastTime = performance.now(); canvas.focus();  
+      });  
+    } else if (mode === "paused") {  
+      mode = "playing"; hideOverlay(); lastTime = performance.now();  
+    }  
+  }  
+  function damage(amount, message) {  
+    if (damageCooldown>0 || mode!=="playing") return;  
+    hull = Math.max(0,hull-amount);  
+    damageCooldown = 0.75;  
+    ventFlash = 0.22;  
+    spawnParticles(player.x,player.y,"#ff795e",13);  
+    if (hull<=0) failDive("Hull integrity reached 0%. Your submarine was destroyed.");  
+    else if (message) toast(message);  
+  }  
+  let toastText="", toastTimer=0;  
+  function toast(t) { toastText=t; toastTimer=1.5; }  
+  function spawnParticles(x,y,color,n) {  
+    for(let i=0;i<n;i++) particles.push({x,y,vx:(Math.random()-.5)*150,vy:(Math.random()-.5)*150,life:.45+Math.random()*.55,color});  
+  }  
+  function failDive(reason) {  
+    if (mode!=="playing") return;  
+    cargo=0; cargoWeight=0; mode="failed"; updateHud();  
+    showOverlay("Dive lost",reason+" Your unbanked cargo was lost, but your vaulted bank is safe.",  
+      "Try Another Dive",startDive);  
+  }  
+  function successfulReturn() {  
+    if (mode!=="playing") return;  
+    bank += cargo;  
+    cargo = 0; cargoWeight = 0;  
+    dives += 1; successfulThisRun += 1;  
+    battery=100; hull=100;  
+    saveCareer(); updateHud();  
+    if (bank>=GOAL) {  
+      mode="victory";  
+      showOverlay("Salvage goal reached!", "You brought your lifetime Vaulted Bank to "+money(bank)+". The trench has been conquered!",  
+        "Play Again",() => { mode="menu"; showOverlay("Deep Sea Salvage","Your bank balance is saved. Start another career dive whenever you are ready.","Start Dive",startDive); });  
+    } else {  
+      mode="recovery";  
+      showOverlay("Safe recovery!", "You banked "+money(lastBanked)+". Battery recharged and hull fully repaired. Your next dive is ready.",  
+        "Start Next Dive",startDive);  
+    }  
+  }  
+  let lastBanked=0;  
+  const oldSuccessfulReturn=successfulReturn;  
+  successfulReturn = function() {  
+    lastBanked=cargo;  
+    oldSuccessfulReturn();  
+  };  
+  
+  function update(dt) {  
+    if (mode!=="playing") return;  
+    runTime += dt;  
+    damageCooldown=Math.max(0,damageCooldown-dt);  
+    toastTimer=Math.max(0,toastTimer-dt);  
+    ventFlash=Math.max(0,ventFlash-dt);  
+    const weightFactor=Math.min(1,cargoWeight/TUNE.maxCargoWeight);  
+    const horizontalSpeed=TUNE.horizontalSpeed*(1-weightFactor*TUNE.cargoHorizontalPenalty*8);  
+    const thrustPower=TUNE.thrust*(1-weightFactor*TUNE.cargoThrustPenalty*7);  
+    let dx=0;  
+    if(keys.ArrowLeft||keys.a||keys.A) dx-=1;  
+    if(keys.ArrowRight||keys.d||keys.D) dx+=1;  
+    player.x += dx*horizontalSpeed*dt;  
+    const leftEdge=trench.left+player.w/2, rightEdge=trench.right-player.w/2;  
+    if(player.x<leftEdge) {  
+      player.x=leftEdge;  
+      if(dx<0 && Math.abs(player.vy)>TUNE.wallImpactSpeed) damage(TUNE.wallDamage,"Hard rock-wall impact: -10% hull.");  
+    } else if(player.x>rightEdge) {  
+      player.x=rightEdge;  
+      if(dx>0 && Math.abs(player.vy)>TUNE.wallImpactSpeed) damage(TUNE.wallDamage,"Hard rock-wall impact: -10% hull.");  
+    }  
+  
+    const thrusting=!!(keys.ArrowUp||keys.w||keys.W);  
+    const diving=!!(keys.ArrowDown||keys.s||keys.S);  
+    battery -= TUNE.baseBatteryDrain*dt;  
+    if(thrusting) {  
+      battery -= TUNE.thrustBatteryDrain*(1+weightFactor*0.75)*dt;  
+      player.vy -= thrustPower*dt;  
+    } else {  
+      player.vy += TUNE.gravity*dt;  
+    }  
+    if(diving) player.vy += TUNE.diveBoost*dt;  
+    player.vy=Math.max(-255,Math.min(330,player.vy));  
+    player.y += player.vy*dt;  
+    battery=Math.max(0,battery);  
+    if(battery<=0) { failDive("Battery power reached 0% before surface recovery."); return; }  
+  
+    // Surface recovery is triggered only after the player has returned from below.  
+    if(player.y<=SURFACE_Y+12 && runTime>1.2 && player.vy<0) {  
+      player.y=SURFACE_Y+12;  
+      successfulReturn();  
+      return;  
+    }  
+    if(player.y>SURFACE_Y+MAX_DEPTH) {  
+      player.y=SURFACE_Y+MAX_DEPTH;  
+      player.vy=0;  
+    }  
+  
+    // Mines oscillate horizontally; deeper mines move faster.  
+    for(const o of objects) {  
+      if(o.type==="mine") {  
+        const depthFactor=o.y/MAX_DEPTH;  
+        const range=trench.right-trench.left-100;  
+        const center=(trench.left+trench.right)/2;  
+        o.x=center+Math.sin(runTime*(o.speed/95)+o.phase)*Math.min(range*.42,o.amp+depthFactor*45);  
+        if(circleRect(o.x,o.y,o.r,player.x,player.y,player.w*.78,player.h*.72) && !o.hit) {  
+          o.hit=true; damage(TUNE.mineDamage,"Sea mine collision: -25% hull.");  
+          if(mode!=="playing") return;  
+        }  
+      } else if(o.type==="vent") {  
+        const depthFactor=o.y/MAX_DEPTH;  
+        const phase=(runTime+o.phase)%o.period;  
+        o.active=phase<1.15;  
+        o.warning=phase>=o.period-1.55 || (phase>=1.15&&phase<1.65);  
+        if(o.active && Math.abs(player.x-o.x)<o.r+player.w*.45 && Math.abs(player.y-o.y)<o.r+player.h*.5 && !o.hit) {  
+          o.hit=true; damage(TUNE.ventDamage,"Thermal vent eruption: -20% hull.");  
+          if(mode!=="playing") return;  
+        }  
+        if(phase>1.9) o.hit=false;  
+      } else if(o.type==="treasure" && !o.collected) {  
+        if(circleRect(o.x,o.y,o.r,player.x,player.y,player.w*.72,player.h*.7)) {  
+          o.collected=true; cargo+=o.value; cargoWeight+=o.weight; collectedCount++;  
+          spawnParticles(o.x,o.y,o.color,12);  
+          toast("Salvaged "+money(o.value)+" treasure · cargo weight +"+o.weight);  
+        }  
+      }  
+    }  
+    for(const p of particles) { p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt; }  
+    particles=particles.filter(p=>p.life>0);  
+    const targetCamera=Math.max(0,player.y-H*.43);  
+    cameraY += (targetCamera-cameraY)*Math.min(1,dt*4.2);  
+    updateHud();  
+  }  
+  function circleRect(cx,cy,r,rx,ry,rw,rh) {  
+    const x=Math.max(rx-rw/2,Math.min(cx,rx+rw/2));  
+    const y=Math.max(ry-rh/2,Math.min(cy,ry+rh/2));  
+    return (cx-x)**2+(cy-y)**2<r*r;  
+  }  
+  function roundRect(c,x,y,w,h,r) {  
+    c.beginPath(); c.roundRect(x,y,w,h,r);  
+  }  
+  function drawBackground() {  
+    const depth=Math.max(0,player.y-SURFACE_Y);  
+    const darkness=Math.min(.9,depth/MAX_DEPTH*.78);  
+    const grad=ctx.createLinearGradient(0,0,0,H);  
+    grad.addColorStop(0,`rgb(${Math.round(5-3*darkness)},${Math.round(35-26*darkness)},${Math.round(62-48*darkness)})`);  
+    grad.addColorStop(1,`rgb(${Math.round(1)},${Math.round(12-9*darkness)},${Math.round(26-22*darkness)})`);  
+    ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);  
+    // Distant water particles.  
+    for(let i=0;i<55;i++) {  
+      const x=(i*137.7+Math.sin(runTime*.25+i)*18)%W;  
+      const y=((i*89.3+runTime*(8+i%4)*((i%2)?1:-1))%H+H)%H;  
+      ctx.fillStyle=`rgba(155,225,245,${.08+(i%4)*.025})`;  
+      ctx.fillRect(x,y,2,2);  
+    }  
+    // Canyon walls.  
+    ctx.fillStyle="#172b36";  
+    ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(trench.left,0);ctx.lineTo(trench.left+18,H);ctx.lineTo(0,H);ctx.closePath();ctx.fill();  
+    ctx.beginPath();ctx.moveTo(W,0);ctx.lineTo(trench.right,0);ctx.lineTo(trench.right-18,H);ctx.lineTo(W,H);ctx.closePath();ctx.fill();  
+    ctx.strokeStyle="#527181";ctx.lineWidth=5;  
+    ctx.beginPath();ctx.moveTo(trench.left,0);ctx.lineTo(trench.left+18,H);ctx.stroke();  
+    ctx.beginPath();ctx.moveTo(trench.right,0);ctx.lineTo(trench.right-18,H);ctx.stroke();  
+    // Surface line and depth markers.  
+    const surfaceScreen=SURFACE_Y-cameraY;  
+    if(surfaceScreen>-10&&surfaceScreen<H+10) {  
+      ctx.strokeStyle="#8cecff";ctx.lineWidth=3;ctx.setLine
