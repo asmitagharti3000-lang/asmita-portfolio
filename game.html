@@ -189,34 +189,38 @@ canvas {
   line-height: 1.7;
 }
 
-.mobile-controls {
-  display: none;
-  grid-template-columns: repeat(3,1fr);
-  gap: 8px;
-  max-width: 330px;
-  margin: 13px auto;
-}
+// MOBILE TOUCH CONTROLS
+const mobileButtons = document.querySelectorAll(
+  ".mobile-controls button[data-key]"
+);
 
-.mobile-controls button {
-  padding: 15px 5px;
-  font-size: .85rem;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-}
+mobileButtons.forEach(button => {
+  const key = button.dataset.key;
 
-.mobile-controls button:active,
-.mobile-controls button.pressed {
-  background: white;
-  transform: scale(.96);
-}
+  function press(event) {
+    event.preventDefault();
+    keys[key] = true;
+    button.classList.add("pressed");
+  }
 
-.controls {
-  color: #a8c8d8;
-  text-align: center;
-  font-size: .8rem;
-  margin-top: 12px;
-}
+  function release(event) {
+    if (event) event.preventDefault();
+    keys[key] = false;
+    button.classList.remove("pressed");
+  }
+
+  // Android and other touch screens
+  button.addEventListener("touchstart", press, { passive: false });
+  button.addEventListener("touchend", release, { passive: false });
+  button.addEventListener("touchcancel", release, { passive: false });
+
+  // Mouse and pointer controls
+  button.addEventListener("pointerdown", press);
+  button.addEventListener("pointerup", release);
+  button.addEventListener("pointercancel", release);
+  button.addEventListener("lostpointercapture", release);
+});
+    
 
 footer {
   color: #789bad;
