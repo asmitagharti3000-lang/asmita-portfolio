@@ -147,9 +147,9 @@ function setStatus(el, msg, isError = false) {
 function parseCSV(s) {
   let rows = [], row = [], cell = '', q = false;
   for (let i = 0; i < s.length; i++) {
-    let c = s[i];
+    let c = s.charAt(i);
     if (q) {
-      if (c === '"' && s[i + 1] === '"') { cell += '"'; i++; }
+      if (c === '"' && s.charAt(i + 1) === '"') { cell += '"'; i++; }
       else if (c === '"') q = false;
       else cell += c;
     } else {
@@ -187,7 +187,6 @@ function caesar(s, n) {
 function vig(s, key, dir) {
   key = key.toUpperCase().replace(/[^A-Z]/g, '');
   if (!key) throw Error('Vigenère key must contain letters A-Z.');
-  // Strip optional DD1 prefix on decrypt
   let text = (dir === -1) ? s.trim().replace(/^DD1[.:]/i, '') : s;
   let i = 0;
   return text.replace(/[A-Za-z]/g, c => {
@@ -229,15 +228,16 @@ async function aes(s, hexKey, dir) {
   if (!sep) throw Error('Invalid DD2 / AES-GCM format (expected prefix, IV, and ciphertext).');
 
   const parts = clean.split(sep);
-  if (parts.length !== 3 || !['DD2', 'AESGCM1'].includes(parts[0].toUpperCase())) {
+  const headerPart = parts.at(0) || '';
+  if (parts.length !== 3 || !['DD2', 'AESGCM1'].includes(headerPart.toUpperCase())) {
     throw Error('Unsupported ciphertext header. Expected DD2 or AESGCM1 format.');
   }
 
-  const iv = decodeSegment(parts[1]);
+  const iv = decodeSegment(parts.at(1) || '');
   if (iv.length !== 12 && iv.length !== 16) {
     throw Error('Invalid AES-GCM nonce/IV length.');
   }
-  const cipherBytes = decodeSegment(parts[2]);
+  const cipherBytes = decodeSegment(parts.at(2) || '');
 
   try {
     const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipherBytes);
@@ -257,3 +257,8 @@ async function processSingle(text, cipher, action, key) {
   } else if (cipher === 'vigenere') {
     return vig(text, key, dir);
   } else {
+    return await aes(text, key, dir);
+  }
+}
+
+  
